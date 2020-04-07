@@ -25,7 +25,7 @@ def peakutils(x, y, degree=3, axis=-1):
 
     return np.apply_along_axis(solve1d, axis=axis, arr=y)
 
-def iterative_minimum_polyfit(x, y, degree=3, max_iter=200, tol=1e-4, impl='qr'):
+def iterative_minimum_polyfit(x, y, degree=3, max_iter=200, impl='qr'):
     """
     Iterative polyfit of elementwise minimum
 
@@ -104,7 +104,7 @@ def iterative_minimum_polyfit_slow(x, y, degree=3, max_iter=200, tol=1e-4, axis=
 
     return np.apply_along_axis(solve1d, axis=axis, arr=y)
 
-def lower_polyfit(x, y, degree, loss='l1', huber_m=1, axis=-1, verbose=False, solver=None, solver_opts={}):
+def lower_polyfit(x, y, degree=3, loss='l1', huber_m=1, axis=-1, verbose=False, solver=None, solver_opts={}):
     N = y.shape[axis]
     x = (x - x.min()) / (x.max() - x.min())
 
