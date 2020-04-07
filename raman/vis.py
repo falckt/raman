@@ -10,6 +10,8 @@ from IPython.display import HTML
 import matplotlib.colors as colors
 import numpy as np
 
+from .utils import stack_xy
+
 def plot_animation(arr, dim='f', fig_kw={}):
     fig, ax = plt.subplots(**fig_kw)
 
@@ -39,7 +41,7 @@ def plot_animation(arr, dim='f', fig_kw={}):
         return mesh, 
 
     def update(val):
-        mesh = arr.sel(**{dim: val}).plot(
+        mesh = arr.sel(**{dim: val}).plot.imshow(
             ax=ax,
             xlim=xlim,
             ylim=ylim,
@@ -51,6 +53,8 @@ def plot_animation(arr, dim='f', fig_kw={}):
         return mesh,
 
     ani = FuncAnimation(fig, update, frames=values[1:], init_func=init, blit=False)
+
+    plt.close(fig)
 
     return HTML(ani.to_jshtml())
 
@@ -74,3 +78,6 @@ def plot_spectrum_facets(arr, dim='f', rows=4, cols=4, **kwargs):
 
     k_rows, k_cols = sel.keys()
     arr.isel(**sel).plot(row=k_rows, col=k_cols, **kwargs)
+
+def plot_all_2d(arr, **kwargs):
+    stack_xy(arr).plot.imshow(**kwargs)

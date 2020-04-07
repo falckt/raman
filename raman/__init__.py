@@ -5,6 +5,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 from .io import read_wdf, read_matlab
-from .vis import plot_animation, plot_central_spectrum, plot_spectrum_facets
+from .vis import plot_animation, plot_central_spectrum, plot_spectrum_facets, plot_all_2d
 from . import unmixing
 from . import baseline
+from . import utils
