@@ -9,7 +9,7 @@ import numpy as np
 from scipy import interpolate
 
 def stack_xy(arr):
-    return arr.stack(sample=('x', 'y')).reset_index('sample')
+    return arr.stack(sample=('x0', 'y0')).reset_index('sample')
 
 def mask_saturated_pixes(arr, dim='f', saturation_count_threshold=10, saturation_value=0):
     sat_pixels = (arr == saturation_value)
@@ -31,11 +31,13 @@ def _interpolate_masked_pixels(y, free_dims, indexes, method):
             c.reshape(-1) for c in np.meshgrid(*indexes)
         ])
 
-        y = y.reshape(ys[:free_dims] + (-1,))
+        y = y.reshape(ys[:free_dims] + (-1,), order='F')
     else:
         raise ValueError('Indexing error')
 
     invalid = np.isnan(y)
+    fill_value = np.nanmax(y)
+
     x = x.T
 
     for idx in np.ndindex(*ys[:free_dims]):
@@ -52,13 +54,19 @@ def _interpolate_masked_pixels(y, free_dims, indexes, method):
 
         elif method == 'nearest':
             f = interpolate.NearestNDInterpolator(x[~ii, :], yy[~ii])
-            y[idx + np.index_exp[ii]] = f(x[ii, :])
+            yh = f(x[ii, :])
+
+            nan_idx = np.isnan(yh)
+            if np.any(nan_idx):
+                yh[nan_idx] = fill_value
+
+            y[idx + np.index_exp[ii]] = yh
 
         else:
-            f = interpolate.LinearNDInterpolator(x[~ii, :], yy[~ii])
+            f = interpolate.LinearNDInterpolator(x[~ii, :], yy[~ii], fill_value=fill_value)
             y[idx + np.index_exp[ii]] = f(x[ii, :])
 
-    return y.reshape(ys)
+    return y.reshape(ys, order='F')
 
 def interpolate_masked_pixels(arr, method='linear', interpolation_dims=None, dim='f'):
     D0 = len(arr.dims)
@@ -81,7 +89,7 @@ def interpolate_masked_pixels(arr, method='linear', interpolation_dims=None, dim
         output_core_dims=[interpolation_dims]
     )
     
-def unsaturate(arr, dim='f', saturation_count_threshold=10, saturation_value=0):
+def unsaturate(arr, method='linear', dim='f', saturation_count_threshold=10, saturation_value=0):
     masked = mask_saturated_pixes(arr, dim, saturation_count_threshold, saturation_value)
 
-    return interpolate_masked_pixels(masked)
+    return interpolate_masked_pixels(masked, method='method', dim=dim)
