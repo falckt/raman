@@ -93,3 +93,17 @@ def unsaturate(arr, method='linear', dim='f', saturation_count_threshold=10, sat
     masked = mask_saturated_pixes(arr, dim, saturation_count_threshold, saturation_value)
 
     return interpolate_masked_pixels(masked, method='method', dim=dim)
+
+def normalize(arr, dim='f', method='root_mean_square'):
+    if method == 'root_mean_square':
+        ss = np.sqrt((arr*arr).mean(dim=dim))
+        return arr / ss
+
+    elif method == 'snv':
+        std = arr.std(dim=dim)
+        mean = arr.mean(dim=dim)
+        return (arr - mean) / std
+
+    elif method == 'unit_variance':
+        std = arr.std(dim=dim)
+        return mean / std
