@@ -8,7 +8,6 @@ import numpy as np
 import xarray as xr
 from scipy import io as sio
 import collections
-import pandas as pd
 
 from . import  _renishaw
 
@@ -49,20 +48,17 @@ def read_wdf(path):
     # W = rawdata['WMAP']['width']
     # H = rawdata['WMAP']['height']
 
-    midx = pd.MultiIndex.from_arrays(
-        [x, y],
-        names=('y', 'x')
-    )
-
     da = xr.DataArray(
         spectra,
         dims=('sample', 'f'),
         coords={
             'f': f,
-            'sample': midx,
+            'x': ('sample', x),
+            'y': ('sample', y),
         }
     )
 
+    da = da.set_index({'sample': ('x', 'y')})
     da = da.unstack('sample')
 
     da.f.attrs['long_name'] = rawdata['XLST']['type']
