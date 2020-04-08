@@ -27,7 +27,7 @@ def parse_wdf1(data, parsed_data):
         ('application_version', '8s'),
         ('scan_type', 'L'),
         ('measurement_type', 'L'),
-        ('padding2', '14s'),
+        ('padding2', '16s'),
         ('spectral_units', 'L'),
         ('laser_wavenumber', 'f'),
         ('padding3', '48s'),
@@ -45,7 +45,7 @@ def parse_wdf1(data, parsed_data):
         'spectral_units': rw_types.UnitType,
     }
     
-    res = struct.unpack(''.join(f for _, f in fields), data)
+    res = struct.unpack('<' + ''.join(f for _, f in fields), data)
     infos = dict(zip((n for n, _ in fields), res))
     
     for f in utf:
@@ -54,7 +54,7 @@ def parse_wdf1(data, parsed_data):
     for f, t in convert_type.items():
         infos[f] = t(infos[f]).name
         
-    infos['application_version'] = struct.unpack('4H', infos['application_version'])
+    infos['application_version'] = struct.unpack('<4H', infos['application_version'])
     infos['laser_wavelength'] = wn_to_wl(infos['laser_wavenumber'])
     
     return infos
@@ -62,7 +62,7 @@ def parse_wdf1(data, parsed_data):
 def parse_lst(data, parsed_data, length_field):
     N = parsed_data['WDF1'][length_field]
     
-    type_, units = struct.unpack('LL', data[:8])
+    type_, units = struct.unpack('<LL', data[:8])
 
     if 4 * N != (len(data) - 8):
         raise ValueError('Size given by metadata does not agree with data block length')
@@ -95,7 +95,7 @@ def parse_wmap(data, parsed_data):
         ('unkwn3', '8s'),
     ]
     
-    fmt = ''.join(f for _, f in fields)
+    fmt = '<' + ''.join(f for _, f in fields)
     field_names = [n for n, _ in fields]
         
     unpacked = struct.unpack(fmt, data)
@@ -107,7 +107,7 @@ def parse_origin(data, parsed_data):
     N = parsed_data['WDF1']['measured_spectra']
     D = parsed_data['WDF1']['data_origin_count']
 
-    D0, padding = struct.unpack('b3s', data[:4])
+    D0, padding = struct.unpack('<b3s', data[:4])
     
     fields = [
         ('type', 'H'),
@@ -117,7 +117,7 @@ def parse_origin(data, parsed_data):
         ('data', f'{8*N}s'),
     ]
     
-    fmt = struct.Struct(''.join(f for _, f in fields))
+    fmt = struct.Struct('<' + ''.join(f for _, f in fields))
     field_names = [n for n, _ in fields]
 
     info_blocks = {}
@@ -161,7 +161,7 @@ def read_block(fid):
     data = fid.read(16)
     
     if data:
-        block_name, block_type, block_len = struct.unpack('4slq', data)
+        block_name, block_type, block_len = struct.unpack('<4sLQ', data)
         block_data = fid.read(block_len - 16)
     
         return block_name.decode('ascii'), block_data
