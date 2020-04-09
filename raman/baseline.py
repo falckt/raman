@@ -21,9 +21,41 @@ def remove(arr, algorithm, dim='f', **kwargs):
 
 def peakutils(x, y, degree=3, axis=-1):
     def solve1d(y):
-        return y - pk.baseline(y, deg=degree)
+        valid = ~np.isnan(y)
+        y[valid] -= pk.baseline(y[valid], deg=degree)
+        return y 
 
     return np.apply_along_axis(solve1d, axis=axis, arr=y)
+
+def _iterative_minimum_fit(lhs, rhs, max_iter, impl):
+    if impl == 'svd':
+        W = np.linalg.svd(lhs, full_matrices=False, compute_uv=True)[0]
+    elif impl == 'qr':
+        W = np.linalg.qr(lhs, mode='reduced')[0]
+    elif impl == 'lstsq':
+        N = len(lhs)
+        rcond = N * np.finfo(lhs.dtype).eps
+    else:
+        raise ValueError(f'Implementation `{impl}` not supported')
+
+    def solve_mul(rhs):
+        return W @ (W.T @ rhs)
+
+    def solve_lstsq(rhs):
+        x = np.linalg.lstsq(lhs, rhs, rcond)[0]
+
+        return lhs @ x
+
+    if impl in ('svd', 'qr'):
+        solve = solve_mul
+    elif impl == 'lstsq':
+        solve = solve_lstsq
+
+    for _ in range(max_iter):
+        rhs_h = solve(rhs)
+        rhs = np.minimum(rhs, rhs_h)
+
+    return rhs_h
 
 def iterative_minimum_polyfit(x, y, degree=3, max_iter=200, impl='qr'):
     """
@@ -39,39 +71,26 @@ def iterative_minimum_polyfit(x, y, degree=3, max_iter=200, impl='qr'):
     """
 
     N = len(x)
-    rcond = N * np.finfo(x.dtype).eps
 
     lhs = np.vander(x, degree+1)
     scale = np.sqrt((lhs*lhs).sum(axis=0))
     lhs /= scale
 
-    rhs = y.reshape((-1, N)).T
+    rhs = y.reshape((-1, N)).T.copy()
 
-    if impl == 'svd':
-        W = np.linalg.svd(lhs, full_matrices=False, compute_uv=True)[0]
-    elif impl == 'qr':
-        W = np.linalg.qr(lhs, mode='reduced')[0]
+    valid = ~np.isnan(rhs)
+    valid_cols = valid.all(axis=0)
 
-    def solve_mul(rhs):
-        return W @ (W.T @ rhs)
+    rhs[:, valid_cols] = _iterative_minimum_fit(lhs, rhs[:, valid_cols], max_iter, impl)
 
-    def solve_lstsq(rhs):
-        x = np.linalg.lstsq(lhs, rhs, rcond)[0]
+    for n in np.where(~valid_cols)[0]:
+        valid_rows = valid[:, n]
 
-        return lhs @ x
+        rhs[valid_rows, n] = _iterative_minimum_fit(
+            lhs[valid_rows, :], rhs[valid_rows, n], max_iter, impl
+        )
 
-    if impl in ('svd', 'qr'):
-        solve = solve_mul
-    elif impl == 'lstsq':
-        solve = solve_lstsq
-    else:
-        raise ValueError(f'Implementation `{impl}` not supported')
-
-    for _ in range(max_iter):
-        rhs_h = solve(rhs)
-        rhs = np.minimum(rhs, rhs_h)
-
-    return y - rhs_h.T.reshape(y.shape)
+    return y - rhs.T.reshape(y.shape)
 
 def iterative_minimum_polyfit_slow(x, y, degree=3, max_iter=200, tol=1e-4, axis=-1):
     """
@@ -89,9 +108,13 @@ def iterative_minimum_polyfit_slow(x, y, degree=3, max_iter=200, tol=1e-4, axis=
     def solve1d(yi):
         y0 = yi
 
+        valid = ~np.isnan(yi)
+        yi = yi[valid]
+        xi = x[valid]
+
         for _ in range(max_iter):
-            p = np.polynomial.Polynomial.fit(x, yi, degree)
-            y_h = p(x)
+            p = np.polynomial.Polynomial.fit(xi, yi, degree)
+            y_h = p(xi)
 
             y_m = np.minimum(yi, y_h)
             e = yi - y_m
@@ -100,7 +123,9 @@ def iterative_minimum_polyfit_slow(x, y, degree=3, max_iter=200, tol=1e-4, axis=
             if (e**2).mean() < tol**2:
                 break
 
-        return y0 - y_h
+        y0[valid] -= y_h
+        
+        return y0
 
     return np.apply_along_axis(solve1d, axis=axis, arr=y)
 
@@ -117,30 +142,48 @@ def lower_polyfit(x, y, degree=3, loss='l1', huber_m=1, axis=-1, verbose=False, 
 
     e = y_p - X @ c
     constr = [e >= 0]
-    if loss == 'l1':
-        obj = cp.sum(e)
-    elif loss == 'l2':
-        obj = cp.sum_squares(e)
-    elif loss == 'huber':
-        obj = cp.sum(cp.huber(e, M=huber_m))
-    else:
-        raise ValueError(f'Loss function `{loss}` is not supported')
 
-    prob = cp.Problem(cp.Minimize(obj), constr)
+    def get_loss(e):
+        if loss == 'l1':
+            return cp.sum(e)
+        elif loss == 'l2':
+            return cp.sum_squares(e)
+        elif loss == 'huber':
+            return cp.sum(cp.huber(e, M=huber_m))
+        else:
+            raise ValueError(f'Loss function `{loss}` is not supported')
+
+    prob = cp.Problem(cp.Minimize(get_loss(e)), constr)
     
     opts = {'verbose': False}
     opts.update(solver_opts)
 
     def solve1d(y):
-        y_p.value = y
+        valid = ~np.isnan(y)
+
+        has_nans = not np.all(valid)
+
+        if has_nans:
+            y_p.value[valid] = y[valid]
+            P = cp.Problem(
+                cp.Minimize(get_loss(e[valid])),
+                [e[valid] >= 0]
+            )
+        else:
+            y_p.value = y
+            P = prob
+
         try:
-            prob.solve(solver=solver, **opts)
+            P.solve(solver=solver, **opts)
         except cp.SolverError:
             return np.empty_like(y) * np.nan
 
-        return e.value
+        if has_nans:
+            return np.where(valid, e.value, np.nan)
+        else:
+            return e.value
     
-    result = np.apply_along_axis(solve1d, axis=axis, arr=y)
+    result = np.apply_along_axis(solve1d, axis=axis, arr=y.copy())
 
     st = prob.solver_stats
     if verbose and st is not None:    
