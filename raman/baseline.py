@@ -109,14 +109,14 @@ def lower_polyfit(x, y, degree=3, loss='l1', huber_m=1, axis=-1, verbose=False, 
     x = (x - x.min()) / (x.max() - x.min())
 
     c = cp.Variable(degree+1, name='c')
-    e = cp.Variable(N, nonneg=True, name='e')
     y_p = cp.Parameter(N)
 
     X = np.vander(x, degree+1)
     scale = (X*X).sum(0)
     X /= scale
 
-    constr = [y_p == X @ c + e]
+    e = y_p - X @ c
+    constr = [e >= 0]
     if loss == 'l1':
         obj = cp.sum(e)
     elif loss == 'l2':
