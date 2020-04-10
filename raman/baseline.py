@@ -4,12 +4,19 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from typing import Any, Callable, Hashable, Mapping, Optional
+
 import peakutils as pk
 import numpy as np
 import cvxpy as cp
 import xarray as xr
 
-def remove(arr, algorithm, dim='f', **kwargs):
+def remove(
+        arr: xr.DataArray,
+        algorithm: Callable,
+        dim: Hashable = 'f',
+        **kwargs
+        ) -> xr.DataArray:
     return xr.apply_ufunc(
         algorithm,
         arr[dim],
@@ -19,15 +26,26 @@ def remove(arr, algorithm, dim='f', **kwargs):
         output_core_dims=[[dim]],
     ).assign_attrs(arr.attrs)
 
-def peakutils(x, y, degree=3, axis=-1):
-    def solve1d(y):
+def peakutils(
+        x: np.ndarray,   # pylint: disable=unused-argument
+        y: np.ndarray,
+        degree: int = 3,
+        axis: int = -1
+        ) -> np.ndarray:
+
+    def solve1d(y: np.ndarray) -> np.ndarray:
         valid = ~np.isnan(y)
         y[valid] -= pk.baseline(y[valid], deg=degree)
-        return y 
+        return y
 
     return np.apply_along_axis(solve1d, axis=axis, arr=y)
 
-def _iterative_minimum_fit(lhs, rhs, max_iter, impl):
+def _iterative_minimum_fit(
+        lhs: np.ndarray,
+        rhs: np.ndarray,
+        max_iter: int,
+        impl: str
+        ) -> np.ndarray:
     if impl == 'svd':
         W = np.linalg.svd(lhs, full_matrices=False, compute_uv=True)[0]
     elif impl == 'qr':
@@ -57,15 +75,21 @@ def _iterative_minimum_fit(lhs, rhs, max_iter, impl):
 
     return rhs_h
 
-def iterative_minimum_polyfit(x, y, degree=3, max_iter=200, impl='qr'):
+def iterative_minimum_polyfit(
+        x: np.ndarray,
+        y: np.ndarray,
+        degree: int = 3,
+        max_iter: int = 200,
+        impl: str = 'qr'
+        ):
     """
     Iterative polyfit of elementwise minimum
 
     Reference
     ----------
-    
-    Lieber, C. A., & Mahadevan-Jansen, A. (2003). Automated Method for Subtraction of Fluorescence from 
-      Biological Raman Spectra. Applied Spectroscopy, 57(11), 1363–1367. 
+
+    Lieber, C. A., & Mahadevan-Jansen, A. (2003). Automated Method for Subtraction of Fluorescence
+      from Biological Raman Spectra. Applied Spectroscopy, 57(11), 1363–1367.
       https://doi.org/10.1366/000370203322554518
 
     """
@@ -92,15 +116,22 @@ def iterative_minimum_polyfit(x, y, degree=3, max_iter=200, impl='qr'):
 
     return y - rhs.T.reshape(y.shape)
 
-def iterative_minimum_polyfit_slow(x, y, degree=3, max_iter=200, tol=1e-4, axis=-1):
+def iterative_minimum_polyfit_slow(
+        x: np.ndarray,
+        y: np.ndarray,
+        degree: int = 3,
+        max_iter: int = 200,
+        tol: float = 1e-4,
+        axis: int = -1
+        ):
     """
     Iterative polyfit of elementwise minimum
 
     Reference
     ----------
-    
-    Lieber, C. A., & Mahadevan-Jansen, A. (2003). Automated Method for Subtraction of Fluorescence from 
-      Biological Raman Spectra. Applied Spectroscopy, 57(11), 1363–1367. 
+
+    Lieber, C. A., & Mahadevan-Jansen, A. (2003). Automated Method for Subtraction of Fluorescence
+      from Biological Raman Spectra. Applied Spectroscopy, 57(11), 1363–1367.
       https://doi.org/10.1366/000370203322554518
 
     """
@@ -124,12 +155,22 @@ def iterative_minimum_polyfit_slow(x, y, degree=3, max_iter=200, tol=1e-4, axis=
                 break
 
         y0[valid] -= y_h
-        
+
         return y0
 
     return np.apply_along_axis(solve1d, axis=axis, arr=y)
 
-def lower_polyfit(x, y, degree=3, loss='l1', huber_m=1, axis=-1, verbose=False, solver=None, solver_opts={}):
+def lower_polyfit(
+        x: np.ndarray,
+        y: np.ndarray,
+        degree: int = 3,
+        loss: str = 'l1',
+        huber_m: float = 1,
+        axis: int = -1,
+        verbose: bool = False,
+        solver: Optional[str] = None,
+        solver_opts: Optional[Mapping[str, Any]] = None
+        ):
     N = y.shape[axis]
     x = (x - x.min()) / (x.max() - x.min())
 
@@ -154,9 +195,10 @@ def lower_polyfit(x, y, degree=3, loss='l1', huber_m=1, axis=-1, verbose=False, 
             raise ValueError(f'Loss function `{loss}` is not supported')
 
     prob = cp.Problem(cp.Minimize(get_loss(e)), constr)
-    
+
     opts = {'verbose': False}
-    opts.update(solver_opts)
+    if solver_opts:
+        opts.update(solver_opts)
 
     def solve1d(y):
         valid = ~np.isnan(y)
@@ -182,11 +224,11 @@ def lower_polyfit(x, y, degree=3, loss='l1', huber_m=1, axis=-1, verbose=False, 
             return np.where(valid, e.value, np.nan)
         else:
             return e.value
-    
+
     result = np.apply_along_axis(solve1d, axis=axis, arr=y.copy())
 
     st = prob.solver_stats
-    if verbose and st is not None:    
+    if verbose and st is not None:
         print(
             f'Problem was solved using {st.solver_name} in {st.num_iters} iteration.\n'
             f'Setup time was {st.setup_time}s while {st.solve_time}s on the solution.'

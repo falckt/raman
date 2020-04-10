@@ -4,20 +4,25 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from typing import Any, Hashable, Optional, Sequence
+
 import xarray as xr
 import numpy as np
 from scipy import interpolate
 
 
-def mask_saturated_pixels(arr, saturation_value=0):
+def mask_saturated_pixels2(arr: xr.DataArray, saturation_value: float = 0) -> xr.DataArray:
     return arr.where(arr != saturation_value)
 
-
-
-def _interpolate_masked_pixels(y, free_dims, indexes, method):
+def _interpolate_masked_pixels(
+        y: np.ndarray,
+        free_dims: int,
+        indexes: Sequence[Any],
+        method: str
+        ) -> xr.DataArray:
     D = len(indexes)
     ys = y.shape
-    
+
     if y.ndim == free_dims + 1:
         x = np.array(indexes)
     elif y.ndim == free_dims + D:
@@ -33,6 +38,9 @@ def _interpolate_masked_pixels(y, free_dims, indexes, method):
     fill_value = np.nanmax(y)
 
     x = x.T
+
+    # for idx in zip(*np.where(invalid.any(axis=0))):
+        # print(idx)
 
     for idx in np.ndindex(*ys[:free_dims]):
         yy = y[idx + np.index_exp[:]].ravel()
@@ -62,17 +70,22 @@ def _interpolate_masked_pixels(y, free_dims, indexes, method):
 
     return y.reshape(ys, order='F')
 
-def interpolate_masked_pixels(arr, method='linear', interpolation_dims=None, dim='f'):
+def interpolate_masked_pixels(
+        arr: xr.DataArray,
+        method: str = 'linear',
+        interpolation_dims: Optional[Sequence[Hashable]] = None,
+        dim: Hashable = 'f'
+        ) -> xr.DataArray:
     D0 = len(arr.dims)
 
     if interpolation_dims is None:
         interpolation_dims = list(arr.dims)
         interpolation_dims.remove(dim)
-    
+
     D = len(interpolation_dims)
 
     indexes = [arr.get_index(d) for d in interpolation_dims]
-    
+
     return xr.apply_ufunc(
         _interpolate_masked_pixels,
         arr,
@@ -82,8 +95,12 @@ def interpolate_masked_pixels(arr, method='linear', interpolation_dims=None, dim
         input_core_dims=[interpolation_dims, [], []],
         output_core_dims=[interpolation_dims]
     )
-    
-def normalize(arr, dim='f', method='root_mean_square'):
+
+def normalize(
+        arr: xr.DataArray,
+        dim: Hashable = 'f',
+        method: str = 'root_mean_square'
+        ) -> xr.DataArray:
     if method == 'root_mean_square':
         ss = np.sqrt((arr*arr).mean(dim=dim))
         res = arr / ss

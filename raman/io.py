@@ -4,19 +4,34 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import numpy as np
-import xarray as xr
-from scipy import io as sio
+from typing import BinaryIO, Hashable, Mapping, Optional, Sequence, Union
+
 import collections
+import pathlib
+
+import xarray as xr
+import numpy as np
+from scipy import io as sio
 
 from . import  _renishaw
 
-def read_matlab(paths_or_files, data_var, dim_vars, long_names={}, units={}):
-    
+PathOrFile = Union[str, pathlib.Path, BinaryIO]
+
+def read_matlab(
+        paths_or_files: Union[PathOrFile, Sequence[PathOrFile]],
+        data_var: str,
+        dim_vars: Mapping[str, str],
+        long_names: Optional[Mapping[Hashable, str]] = None,
+        units: Optional[Mapping[Hashable, str]] = None
+        ) -> xr.DataArray:
     if not isinstance(paths_or_files, collections.Iterable) or isinstance(paths_or_files, str):
         paths_or_files = [paths_or_files]
-    
-    data = {}
+    if not long_names:
+        long_names = {}
+    if not units:
+        units = {}
+
+    data: Mapping[str, np.ndarray] = {}
     for p in paths_or_files:
         sio.loadmat(p, data)
 
@@ -38,9 +53,9 @@ def read_matlab(paths_or_files, data_var, dim_vars, long_names={}, units={}):
 
     return da
 
-def read_wdf(path):
+def read_wdf(path: Union[pathlib.Path, str]) -> xr.DataArray:
     rawdata = _renishaw.parse_wdf(path)
-    
+
     spectra = rawdata['DATA']
     f = rawdata['XLST']['data']
     x = rawdata['ORGN']['X']['data']
