@@ -50,16 +50,14 @@ def read_wdf(path):
 
     da = xr.DataArray(
         spectra,
-        dims=('sample', 'f'),
+        dims=('pixel', 'f'),
         coords={
             'f': f,
-            'x': ('sample', x),
-            'y': ('sample', y),
+            'x': ('pixel', x),
+            'y': ('pixel', y),
         }
     )
-
-    da = da.set_index({'sample': ('x', 'y')})
-    da = da.unstack('sample')
+    da = da.assign_coords(pixel=da.get_index('pixel'))
 
     da.f.attrs['long_name'] = rawdata['XLST']['type']
     da.f.attrs['units'] = rawdata['XLST']['units']
