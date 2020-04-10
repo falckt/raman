@@ -8,17 +8,11 @@ import xarray as xr
 import numpy as np
 from scipy import interpolate
 
-def stack_xy(arr):
-    return arr.stack(sample=('x0', 'y0')).reset_index('sample')
 
-def mask_saturated_pixes(arr, dim='f', saturation_count_threshold=10, saturation_value=0):
-    sat_pixels = (arr == saturation_value)
-    sat_pixels_per_spectrum = sat_pixels.sum(dim=dim)
+def mask_saturated_pixels(arr, saturation_value=0):
+    return arr.where(arr != saturation_value)
 
-    idx_spectra_w_saturations = sat_pixels_per_spectrum >= saturation_count_threshold
-    idx_sat_pixels = sat_pixels & idx_spectra_w_saturations
 
-    return arr.where(~idx_sat_pixels)
 
 def _interpolate_masked_pixels(y, free_dims, indexes, method):
     D = len(indexes)
@@ -89,11 +83,6 @@ def interpolate_masked_pixels(arr, method='linear', interpolation_dims=None, dim
         output_core_dims=[interpolation_dims]
     )
     
-def unsaturate(arr, method='linear', dim='f', saturation_count_threshold=10, saturation_value=0):
-    masked = mask_saturated_pixes(arr, dim, saturation_count_threshold, saturation_value)
-
-    return interpolate_masked_pixels(masked, method='method', dim=dim)
-
 def normalize(arr, dim='f', method='root_mean_square'):
     if method == 'root_mean_square':
         ss = np.sqrt((arr*arr).mean(dim=dim))
