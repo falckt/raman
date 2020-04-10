@@ -4,114 +4,62 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from typing import Any, Hashable, Optional, Sequence
+from typing import Any, Hashable, Iterable, Mapping, Optional
 
 import xarray as xr
-import numpy as np
-from scipy import interpolate
 
+from . import alignment
 
-def mask_saturated_pixels2(arr: xr.DataArray, saturation_value: float = 0) -> xr.DataArray:
-    return arr.where(arr != saturation_value)
-
-def _interpolate_masked_pixels(
-        y: np.ndarray,
-        free_dims: int,
-        indexes: Sequence[Any],
-        method: str
+def concat(
+        arrays: Iterable[xr.DataArray],
+        align_frequencies: bool = True,
+        align_spatially: bool = False,
+        *,  # make the following arguments keyword only
+        concat_dim: Hashable = 'file_idx',
+        frequency_dim: Hashable = 'f',
+        spatial_dims: Iterable[Hashable] = ('x', 'y'),
+        frequency_interp_method: str = 'linear',
+        frequency_interp_kwargs: Mapping[str, Any] = {},
+        spatial_origin: str = 'center',
+        spatial_align_tolerance: Optional[float] = 1,
+        spatial_align_method: Optional[str] = 'nearest'
         ) -> xr.DataArray:
-    D = len(indexes)
-    ys = y.shape
+    if align_spatially:
+        arrays = (
+            alignment.normalize_spatial_dimensions(arr, origin=spatial_origin, dims=spatial_dims)
+            for arr in arrays
+        )
 
-    if y.ndim == free_dims + 1:
-        x = np.array(indexes)
-    elif y.ndim == free_dims + D:
-        x = np.array([
-            c.reshape(-1) for c in np.meshgrid(*indexes)
-        ])
+        arrays = alignment.align_spatial_dimensions(
+            arrays,
+            dims=spatial_dims,
+            tolerance=spatial_align_tolerance,
+            method=spatial_align_method
+        )
 
-        y = y.reshape(ys[:free_dims] + (-1,), order='F')
-    else:
-        raise ValueError('Indexing error')
+    if align_frequencies:
+        arrays = alignment.align_frequency_dimension(
+            arrays,
+            dim=frequency_dim,
+            method=frequency_interp_method,
+            interp_kwargs=frequency_interp_kwargs
+        )
 
-    invalid = np.isnan(y)
-    fill_value = np.nanmax(y)
+    arr_list = list(arrays)
+    con_arr = xr.concat(arr_list, dim=concat_dim)
 
-    x = x.T
+    con_coords = {}
+    for attr in arr_list[0].attrs:
+        values = list(arr.attrs[attr] for arr in arr_list)
 
-    # for idx in zip(*np.where(invalid.any(axis=0))):
-        # print(idx)
-
-    for idx in np.ndindex(*ys[:free_dims]):
-        yy = y[idx + np.index_exp[:]].ravel()
-        ii = invalid[idx + np.index_exp[:]].ravel()
-
-        if ii.sum() == 0:
+        if len(set(values)) == 1:
+            # value is constant --> not a coordinate
             continue
 
-        if D == 1:
-            x = x.ravel()
-            f = interpolate.interp1d(x[~ii], yy[~ii], kind=method, fill_value='extrapolate')
-            y[idx + np.index_exp[ii]] = f(x[ii])
+        con_coords[attr] = xr.DataArray(values, dims=concat_dim)
 
-        elif method == 'nearest':
-            f = interpolate.NearestNDInterpolator(x[~ii, :], yy[~ii])
-            yh = f(x[ii, :])
+    con_arr = con_arr.assign_coords(con_coords)
+    for key in con_coords:
+        del con_arr.attrs[key]
 
-            nan_idx = np.isnan(yh)
-            if np.any(nan_idx):
-                yh[nan_idx] = fill_value
-
-            y[idx + np.index_exp[ii]] = yh
-
-        else:
-            f = interpolate.LinearNDInterpolator(x[~ii, :], yy[~ii], fill_value=fill_value)
-            y[idx + np.index_exp[ii]] = f(x[ii, :])
-
-    return y.reshape(ys, order='F')
-
-def interpolate_masked_pixels(
-        arr: xr.DataArray,
-        method: str = 'linear',
-        interpolation_dims: Optional[Sequence[Hashable]] = None,
-        dim: Hashable = 'f'
-        ) -> xr.DataArray:
-    D0 = len(arr.dims)
-
-    if interpolation_dims is None:
-        interpolation_dims = list(arr.dims)
-        interpolation_dims.remove(dim)
-
-    D = len(interpolation_dims)
-
-    indexes = [arr.get_index(d) for d in interpolation_dims]
-
-    return xr.apply_ufunc(
-        _interpolate_masked_pixels,
-        arr,
-        D0 - D,
-        indexes,
-        kwargs={'method': method},
-        input_core_dims=[interpolation_dims, [], []],
-        output_core_dims=[interpolation_dims]
-    )
-
-def normalize(
-        arr: xr.DataArray,
-        dim: Hashable = 'f',
-        method: str = 'root_mean_square'
-        ) -> xr.DataArray:
-    if method == 'root_mean_square':
-        ss = np.sqrt((arr*arr).mean(dim=dim))
-        res = arr / ss
-
-    elif method == 'snv':
-        std = arr.std(dim=dim)
-        mean = arr.mean(dim=dim)
-        res = (arr - mean) / std
-
-    elif method == 'unit_variance':
-        std = arr.std(dim=dim)
-        res = mean / std
-
-    return res.assign_attrs(arr.attrs)
+    return con_arr
