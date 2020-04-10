@@ -4,7 +4,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from typing import Any, Hashable, Iterable, List, Mapping, Optional
+from typing import Any, Hashable, Iterable, List, Mapping, Optional, Union, cast
 
 import xarray as xr
 
@@ -65,15 +65,18 @@ def align_frequency_dimension(
 
 def align_spatial_dimensions(
         arrays: Iterable[xr.DataArray],
-        dims: Iterable[Hashable] = ('x', 'y'),
+        indexes: Union[Iterable[Hashable], Mapping[Hashable, Any]] = ('x', 'y'),
         tolerance: Optional[float] = 1,
         method: Optional[str] = 'nearest'
         ) -> List[xr.DataArray]:
     arr_iter = iter(arrays)
 
-    prototype = next(arr_iter)
-    indexes = {dim: prototype.get_index(dim) for dim in dims}
+    if not isinstance(indexes, Mapping):
+        prototype = next(arr_iter)
+
+        indexes = {dim: prototype.get_index(dim) for dim in indexes}
 
     return [prototype] + [
-        arr.reindex(indexes, tolerance=tolerance, method=method) for arr in arr_iter
+        arr.reindex(cast(Mapping[Hashable, Any], indexes), tolerance=tolerance, method=method)
+        for arr in arr_iter
     ]
