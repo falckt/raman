@@ -11,7 +11,7 @@ import numpy as np
 from scipy import interpolate
 
 
-def mask_saturated_pixels2(arr: xr.DataArray, saturation_value: float = 0) -> xr.DataArray:
+def mask_saturated_pixels(arr: xr.DataArray, saturation_value: float = 0) -> xr.DataArray:
     return arr.where(arr != saturation_value)
 
 def _interpolate_masked_pixels(
