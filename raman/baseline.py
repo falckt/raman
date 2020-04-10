@@ -17,7 +17,7 @@ def remove(arr, algorithm, dim='f', **kwargs):
         kwargs=kwargs,
         input_core_dims=[[dim], [dim]],
         output_core_dims=[[dim]],
-    )
+    ).assign_attrs(arr.attrs)
 
 def peakutils(x, y, degree=3, axis=-1):
     def solve1d(y):
