@@ -21,9 +21,9 @@ def sunsal_tv(A, Y, lambda_1, lambda_tv, sweep='prod', tv_type='iso', additional
     subject to  X >= 0                 # if additional_constraint is 'positive'
                 sum(X, axis=0) == 1    # if additional_constraint is 'sum_to_one'
 
-    with 
+    with
       || X ||_1 = \sum_i | x_i |    # for a flattened array X
-      || X ||_TV = \sum_i (\sum_j |X_ij|^p)^(1/p)      # p = 1 for non-isotropic and p = 2 for isotropic
+      || X ||_TV = \sum_i (\sum_j |X_ij|^p)^(1/p)  # p = 1 for non-isotropic and p = 2 for isotropic
 
     Parameters
     ----------
@@ -31,7 +31,7 @@ def sunsal_tv(A, Y, lambda_1, lambda_tv, sweep='prod', tv_type='iso', additional
     Y: array - N x m_1 x ... x m_d, target spectra, m_1, ..., m_d are spatial dimnesions
     lambda_1: float - regularization constant for elementwise sparsity inducing term
     lambda_TV: float - regularization constant for TV regularizer (sparse changes along spatial dimensions)
-    sweep: {'prod', 'zip'} - 
+    sweep: {'prod', 'zip'} -
     tv_type: {'iso', 'non-iso'} - type of total variation norm, isotropic or non-isotropic
     additional_constraint: {'none', 'positive', 'sum_to_one'} - additional constraint on solution
 
@@ -41,8 +41,8 @@ def sunsal_tv(A, Y, lambda_1, lambda_tv, sweep='prod', tv_type='iso', additional
 
     References
     ----------
-    [1] M. Iordache, J. M. Bioucas-Dias and A. Plaza, "Total Variation Spatial Regularization for 
-        Sparse Hyperspectral Unmixing," in IEEE Transactions on Geoscience and Remote Sensing, 
+    [1] M. Iordache, J. M. Bioucas-Dias and A. Plaza, "Total Variation Spatial Regularization for
+        Sparse Hyperspectral Unmixing," in IEEE Transactions on Geoscience and Remote Sensing,
         vol. 50, no. 11, pp. 4484-4502, Nov. 2012.
 
     [2] Matlab implementation, downloaded from
@@ -58,7 +58,7 @@ def sunsal_tv(A, Y, lambda_1, lambda_tv, sweep='prod', tv_type='iso', additional
     # reshape Y from [spectra x Xpos x Ypos x ...] --> [spectra x (Xpos * Ypos * ...)]
     Y = Y.reshape((num_spectra, -1))
     num_samples = Y.shape[1]
-    
+
     # create optimization variables
     positive_solution = (additional_constraint == 'positive')
     X = cp.Variable((lib_size, num_samples), nonneg=positive_solution)
@@ -75,7 +75,7 @@ def sunsal_tv(A, Y, lambda_1, lambda_tv, sweep='prod', tv_type='iso', additional
         ib = np.ravel(idx_s.take(indices=np.r_[:d], axis=n))
 
         differences.append(X[:, ia] - X[:, ib])
-    
+
     # compute TV norm
     if tv_type == 'iso':
         D = [x*x for x in differences]
@@ -86,15 +86,15 @@ def sunsal_tv(A, Y, lambda_1, lambda_tv, sweep='prod', tv_type='iso', additional
         tv = cp.sum(D)
     else:
         raise ValueError(f'TV norm type `{tv_type}` is not defined')
-    
+
     # define object function
     obj = cp.norm(Y - A @ X, p='fro') + p_lambda_1 * cp.pnorm(X, p=1) + p_lambda_tv * tv
-  
+
     # constraints
     constr = []
     if additional_constraint == 'sum_to_one':
         constr.append(cp.sum(X, axis=0) == 1)
-    
+
     # opimiztion problem
     prob = cp.Problem(cp.Minimize(obj), constr)
 
@@ -111,7 +111,7 @@ def sunsal_tv(A, Y, lambda_1, lambda_tv, sweep='prod', tv_type='iso', additional
         lambda_tv = [lambda_tv]
     else:
         lambda_scalar = False
-    
+
     if sweep == 'prod':
         l_iter = product(lambda_1, lambda_tv)
     elif sweep == 'zip':
@@ -128,7 +128,7 @@ def sunsal_tv(A, Y, lambda_1, lambda_tv, sweep='prod', tv_type='iso', additional
         prob.solve(solver=cp.SCS, verbose=True)
 
         results[(l_1, l_tv)] = X.value.reshape((lib_size, ) + sample_dims)
-    
+
     if lambda_scalar:
         return results.popitem()[1]
     else:

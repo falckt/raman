@@ -1,15 +1,15 @@
 # Copyright (c) 2020 alchem0x2A
-# 
+#
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
 # in the Software without restriction, including without limitation the rights
 # to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 # copies of the Software, and to permit persons to whom the Software is
 # furnished to do so, subject to the following conditions:
-# 
+#
 # The above copyright notice and this permission notice shall be included in all
 # copies or substantial portions of the Software.
-# 
+#
 # THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 # IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 # FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -18,11 +18,11 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 #
-# Copied from 
+# Copied from
 # https://github.com/alchem0x2A/py-wdf-reader/blob/4090b71d1ac7d5cf9628f1808df866b7c552be98/renishawWiRE/types.py
 
 # Declaration of DATA types
-from enum import IntEnum, Enum
+from enum import IntEnum
 
 
 class MeasurementType(IntEnum):
@@ -39,7 +39,7 @@ class ScanType(IntEnum):
     StepRepeat = 3
     FilterScan = 4
     FilterImage = 5
-    StreamLine = 6 
+    StreamLine = 6
     StreamLineHR = 7
     PointDetector = 8
 
