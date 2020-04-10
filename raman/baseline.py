@@ -4,7 +4,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from typing import Any, Callable, Hashable, Mapping, Optional
+from typing import Any, Callable, Dict, Hashable, Mapping, Optional, Union
 
 import peakutils as pk
 import numpy as np
@@ -13,12 +13,18 @@ import xarray as xr
 
 def remove(
         arr: xr.DataArray,
-        algorithm: Callable,
+        algorithm: Union[str, Callable] = 'iterative_minimum_polyfit',
         dim: Hashable = 'f',
         **kwargs
         ) -> xr.DataArray:
+
+    if isinstance(algorithm, str):
+        func = removal_methods[algorithm]
+    else:
+        func = algorithm
+
     return xr.apply_ufunc(
-        algorithm,
+        func,
         arr[dim],
         arr,
         kwargs=kwargs,
@@ -235,3 +241,9 @@ def lower_polyfit(
         )
 
     return result
+
+removal_methods: Dict[str, Callable] = {
+    'iterative_minimum_polyfit': iterative_minimum_polyfit,
+    'modpoly': iterative_minimum_polyfit,
+    'lower_polyfit': lower_polyfit,
+}
