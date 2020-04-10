@@ -5,6 +5,17 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 from .io import read_wdf, read_matlab
-from . import unmixing
-from . import baseline
 from . import utils
+from . import preprocessing
+from . import baseline
+from . import alignment
+from . import unmixing
+
+def _register_xarray_helper():
+    # pylint: disable=import-outside-toplevel
+    import xarray as xr
+    from .xarray_helper import XArrayHelper
+
+    xr.register_dataarray_accessor('rm')(XArrayHelper)
+
+_register_xarray_helper()
