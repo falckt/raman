@@ -65,3 +65,7 @@ class XArrayHelper:
     @_function_to_method(preprocessing.interpolate_masked_pixels)
     def interpolate_masked_pixels(self):
         return (self._array, )
+
+    @_function_to_method(preprocessing.delete_invalid_pixels)
+    def delete_invalid_pixels(self):
+        return (self._array, )

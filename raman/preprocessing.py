@@ -39,15 +39,9 @@ def _interpolate_masked_pixels(
 
     x = x.T
 
-    # for idx in zip(*np.where(invalid.any(axis=0))):
-        # print(idx)
-
-    for idx in np.ndindex(*ys[:free_dims]):
+    for idx in zip(*np.where(invalid.any(axis=-1))):
         yy = y[idx + np.index_exp[:]].ravel()
         ii = invalid[idx + np.index_exp[:]].ravel()
-
-        if ii.sum() == 0:
-            continue
 
         if D == 1:
             x = x.ravel()
@@ -88,13 +82,33 @@ def interpolate_masked_pixels(
 
     return xr.apply_ufunc(
         _interpolate_masked_pixels,
-        arr,
+        arr.copy(),
         D0 - D,
         indexes,
         kwargs={'method': method},
         input_core_dims=[interpolation_dims, [], []],
         output_core_dims=[interpolation_dims]
     )
+
+def delete_invalid_pixels(
+        arr: xr.DataArray,
+        thres: int = 10,
+        drop_old_index: bool = False,
+        dim: Hashable = 'f'
+        ) -> xr.DataArray:
+    idx = (arr.isnull().sum(dim) > thres)
+
+    if arr.ndim == 2:
+        drop_dim = [d for d in arr.dims if d != dim][0]
+        arr = (arr # type: ignore[assignment]
+               .isel({drop_dim: ~idx.data})
+               .reset_index(drop_dim, drop=drop_old_index)
+              )
+        arr = arr.assign_coords({drop_dim: arr.get_index(drop_dim)})
+    else:
+        arr = arr.where(idx)
+
+    return arr
 
 def normalize(
         arr: xr.DataArray,
