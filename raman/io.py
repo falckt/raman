@@ -66,16 +66,19 @@ def read_wdf(path: Union[pathlib.Path, str]) -> xr.DataArray:
     da = xr.DataArray(
         spectra,
         dims=('pixel', 'f'),
-        coords={
-            'f': f,
-            'x': ('pixel', x),
-            'y': ('pixel', y),
-        }
     )
-    da = da.assign_coords(pixel=da.get_index('pixel'))
+    da = da.assign_coords(
+        pixel=da.get_index('pixel'),
+        f=f,
+        x=('pixel', x),
+        y=('pixel', y),
+    )
 
     da.f.attrs['long_name'] = rawdata['XLST']['type']
     da.f.attrs['units'] = rawdata['XLST']['units']
+
+    da.pixel.attrs['long_name'] = rawdata['YLST']['type']
+    da.pixel.attrs['units'] = rawdata['YLST']['units']
 
     da.x.attrs['long_name'] = rawdata['ORGN']['X']['name']
     da.x.attrs['units'] = rawdata['ORGN']['X']['units']

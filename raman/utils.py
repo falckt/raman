@@ -59,24 +59,7 @@ def concat(
             interp_kwargs=frequency_interp_kwargs
         )
 
-    arr_list = list(arrays)
-    con_arr = xr.concat(arr_list, dim=concat_dim)
-
-    con_coords = {}
-    for attr in arr_list[0].attrs:
-        values = list(arr.attrs[attr] for arr in arr_list)
-
-        if len(set(values)) == 1:
-            # value is constant --> not a coordinate
-            continue
-
-        con_coords[attr] = xr.DataArray(values, dims=concat_dim)
-
-    con_arr = con_arr.assign_coords(con_coords)
-    for key in con_coords:
-        del con_arr.attrs[key]
-
-    return con_arr
+    return xr.concat(list(arrays), dim=concat_dim)
 
 def ensure_dims(array: xr.DataArray, *dimensions: Hashable) -> xr.DataArray:
     missing_dims = set(dimensions) - set(array.dims)
