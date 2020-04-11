@@ -4,7 +4,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from typing import Any, Hashable, Iterable, Mapping, Optional, Sequence, cast
+from typing import Any, Hashable, Iterable, Mapping, Optional, Sequence
 
 from collections import defaultdict
 import xarray as xr
@@ -18,7 +18,7 @@ def cubify(
         ):
     if not spatial_dims:
         spatial_dims = ('x', 'y')
-    cube = cast(xr.DataArray, arr.set_index({pixel_dim: spatial_dims})).unstack(pixel_dim)
+    cube = arr.set_index({pixel_dim: spatial_dims}).unstack(pixel_dim)  # type: ignore[union-attr]
     for d in spatial_dims:
         cube.coords[d].attrs = arr.coords[d].attrs
     return cube
@@ -76,7 +76,7 @@ def ensure_dims(array: xr.DataArray, *dimensions: Hashable) -> xr.DataArray:
         new_dims[cdim].append(coord)
 
     for dim, coords in new_dims.items():
-        array = cast(xr.DataArray, array.set_index({cdim: tuple(coords)}))
+        array = array.set_index({cdim: tuple(coords)})  # type: ignore[assignment]
 
         if len(coords) > 1:
             array = array.unstack(dim)
@@ -88,12 +88,6 @@ def stack_dims(
         **dimensions: Sequence[Hashable]
         ) -> xr.DataArray:
 
-    # to satisfy static type check with mypy
-    dim = cast(Mapping[Hashable, Sequence[Hashable]], dimensions)
+    new_array = array.stack(dimensions).reset_index(tuple(dimensions.keys()))  # type: ignore[arg-type]
 
-    new_array = array.stack(dim).reset_index(tuple(dimensions.keys()))
-
-    # mypy: reset_index can happen inplace in which case it returns none
-    new_array = cast(xr.DataArray, new_array)
-
-    return new_array.assign_coords({dim: new_array.get_index(dim) for dim in dimensions})
+    return new_array.assign_coords({dim: new_array.get_index(dim) for dim in dimensions})  # type: ignore[union-attr]

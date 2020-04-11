@@ -4,7 +4,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from typing import Any, Hashable, Iterable, List, Mapping, Optional, Union, cast
+from typing import Any, Hashable, Iterable, List, Mapping, Optional, Union
 
 import xarray as xr
 
@@ -77,6 +77,6 @@ def align_spatial_dimensions(
         indexes = {dim: prototype.get_index(dim) for dim in indexes}
 
     return [prototype] + [
-        arr.reindex(cast(Mapping[Hashable, Any], indexes), tolerance=tolerance, method=method)
+        arr.reindex(indexes, tolerance=tolerance, method=method)
         for arr in arr_iter
     ]
