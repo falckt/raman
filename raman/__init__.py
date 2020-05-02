@@ -9,7 +9,6 @@ from . import utils
 from . import preprocessing
 from . import baseline
 from . import alignment
-from . import unmixing
 
 def _register_xarray_helper():
     # pylint: disable=import-outside-toplevel

@@ -6,9 +6,7 @@
 
 from typing import Any, Callable, Dict, Hashable, Mapping, Optional, Union
 
-import peakutils as pk
 import numpy as np
-import cvxpy as cp
 import xarray as xr
 
 def remove(
@@ -38,6 +36,8 @@ def peakutils(
         degree: int = 3,
         axis: int = -1
         ) -> np.ndarray:
+
+    import peakutils as pk  # pylint: disable=import-outside-toplevel
 
     def solve1d(y: np.ndarray) -> np.ndarray:
         valid = ~np.isnan(y)
@@ -177,6 +177,8 @@ def lower_polyfit(
         solver: Optional[str] = None,
         solver_opts: Optional[Mapping[str, Any]] = None
         ):
+    import cvxpy as cp  # pylint: disable=import-outside-toplevel
+
     N = y.shape[axis]
     x = (x - x.min()) / (x.max() - x.min())
 
