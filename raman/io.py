@@ -54,6 +54,17 @@ def read_matlab(
     return da
 
 def read_wdf(path: Union[pathlib.Path, str]) -> xr.DataArray:
+    """Reads a WDF file from a Renishaw spectroscope
+
+    Args:
+        path: Path to the file
+
+    Returns:
+        A datarray with dimensions `f` with frequencies and `pixel` with the pixel values.
+        The spatial information of the pixel is retained in the coordinates `x` and `y` that
+        are linked to the `pixel` dimension.
+    """
+
     rawdata = _renishaw.parse_wdf(path)
 
     spectra = rawdata['DATA']

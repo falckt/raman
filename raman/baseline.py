@@ -15,6 +15,25 @@ def remove(
         dim: Hashable = 'f',
         **kwargs
         ) -> xr.DataArray:
+    """Removes the baseline from a spectrum
+
+    Runs a baseline removal algorithm on a dataarray. The data dimension that
+    is considered to represent the spectrum can be freely chosen. The baseline
+    is removed for all spectra contained in the datarray. NaN values in the spectra
+    are silently ignored.
+
+    Args:
+        arr: input dataarray
+        algorithm: {'iterative_minimum_polyfit', 'iterative_minimum_polyfit', 'modpoly',
+            'lower_polyfit' or a callable function} algorithm used for baseline removal.
+            Possible functions are all the one defined in `raman.baseline` or a custom
+            one providing the same interface.
+        dim: Dataarray dimension corresping to frequencies. Defaults to `f`.
+        **kwargs: Additional keyword arguments that are passed to the algorithm as is.
+
+    Returns:
+        A dataarray with the baseline removed for all spectra.
+    """
 
     if isinstance(algorithm, str):
         func = removal_methods[algorithm]
@@ -36,7 +55,24 @@ def peakutils(
         degree: int = 3,
         axis: int = -1
         ) -> np.ndarray:
+    """Polynomial baseline removal method based on `peakutils.baseline`
 
+    Peakutils implement a `modpoly` variant. The frequency information is not used,
+    be careful when using with non-uniformly sampled frequencies.
+    Stopping criterion is loose so typically stops quite early
+
+    Args:
+        x: array-like of shape (n_frequencies), ignored
+        y: array-like of shape (..., n_frequencies, ...)
+        degree: degree of the polynomial modeling the baseline
+        axis: index of axis of `y` that contains the frequncies. Defaults to the last.
+
+    Returns:
+        ndarray of the same shape as `y`.
+
+    See also:
+        peakutils.baseline: underlying function
+    """
     import peakutils as pk  # pylint: disable=import-outside-toplevel
 
     def solve1d(y: np.ndarray) -> np.ndarray:
@@ -49,7 +85,7 @@ def peakutils(
 def _iterative_minimum_fit(
         lhs: np.ndarray,
         rhs: np.ndarray,
-        max_iter: int,
+        num_iter: int,
         impl: str
         ) -> np.ndarray:
     if impl == 'svd':
@@ -75,7 +111,7 @@ def _iterative_minimum_fit(
     elif impl == 'lstsq':
         solve = solve_lstsq
 
-    for _ in range(max_iter):
+    for _ in range(num_iter):
         rhs_h = solve(rhs)
         rhs = np.minimum(rhs, rhs_h)
 
@@ -85,19 +121,31 @@ def iterative_minimum_polyfit(
         x: np.ndarray,
         y: np.ndarray,
         degree: int = 3,
-        max_iter: int = 200,
+        num_iter: int = 200,
         impl: str = 'qr'
         ):
-    """
-    Iterative polyfit of elementwise minimum
+    """Polynomial baseline removal method based on `modpoly`.
 
-    Reference
-    ----------
+    Iteratively fits polynomial to the spectrum. After each fit takes the pointwise
+    minimum of the spectrum and the current estimate as target for the next iteration.
+    Only support stopping criterion is number of iterations, but implementation is very
+    fast. Support different solvers for polynomial fit, it should be safe to stick to
+    the default.
 
-    Lieber, C. A., & Mahadevan-Jansen, A. (2003). Automated Method for Subtraction of Fluorescence
-      from Biological Raman Spectra. Applied Spectroscopy, 57(11), 1363–1367.
-      https://doi.org/10.1366/000370203322554518
+    Args:
+        x: array-like of shape (n_frequencies)
+        y: array-like of shape (..., n_frequencies)
+        degree: degree of the polynomial modeling the baseline
+        num_iter: number of iterations
+        impl: {'qr' (default), 'svd', 'lstsq'} algorithm used to do the polynomial fit
 
+    Returns:
+        ndarray of the same shape as `y`.
+
+    Reference:
+        Lieber, C. A., & Mahadevan-Jansen, A. (2003). Automated Method for Subtraction of
+            Fluorescence from Biological Raman Spectra. Applied Spectroscopy, 57(11), 1363–1367.
+            https://doi.org/10.1366/000370203322554518
     """
 
     N = len(x)
@@ -111,13 +159,13 @@ def iterative_minimum_polyfit(
     valid = ~np.isnan(rhs)
     valid_cols = valid.all(axis=0)
 
-    rhs[:, valid_cols] = _iterative_minimum_fit(lhs, rhs[:, valid_cols], max_iter, impl)
+    rhs[:, valid_cols] = _iterative_minimum_fit(lhs, rhs[:, valid_cols], num_iter, impl)
 
     for n in np.where(~valid_cols)[0]:
         valid_rows = valid[:, n]
 
         rhs[valid_rows, n] = _iterative_minimum_fit(
-            lhs[valid_rows, :], rhs[valid_rows, n], max_iter, impl
+            lhs[valid_rows, :], rhs[valid_rows, n], num_iter, impl
         )
 
     return y - rhs.T.reshape(y.shape)
@@ -130,16 +178,34 @@ def iterative_minimum_polyfit_slow(
         tol: float = 1e-4,
         axis: int = -1
         ):
-    """
-    Iterative polyfit of elementwise minimum
+    """Polynomial baseline removal method based on `modpoly`.
 
-    Reference
-    ----------
+    Iteratively fits polynomial to the spectrum. After each fit takes the pointwise
+    minimum of the spectrum and the current estimate as target for the next iteration.
+    Only support stopping criterion is number of iterations, but implementation is very
+    fast. Support different solvers for polynomial fit, it should be safe to stick to
+    the default.
 
-    Lieber, C. A., & Mahadevan-Jansen, A. (2003). Automated Method for Subtraction of Fluorescence
-      from Biological Raman Spectra. Applied Spectroscopy, 57(11), 1363–1367.
-      https://doi.org/10.1366/000370203322554518
+    Args:
+        x: array-like of shape (n_frequencies)
+        y: array-like of shape (..., n_frequencies, ...)
+        degree: degree of the polynomial modeling the baseline
+        max_iter: maximum number of iterations
+        tol: max difference between the estimated baselines between two iterations.
+            sqrt(mean( (baseline(it i) - baseline(it i-1))^2 )) <= tol
+        axis: index of axis of `y` that contains the frequncies. Defaults to the last.
 
+    Returns:
+        ndarray of the same shape as `y`.
+
+    See also:
+        iterative_minimum_polyfit: equivalent much faster implementation, does not support
+            stopping criteria however
+
+    Reference:
+        Lieber, C. A., & Mahadevan-Jansen, A. (2003). Automated Method for Subtraction of
+            Fluorescence from Biological Raman Spectra. Applied Spectroscopy, 57(11), 1363–1367.
+            https://doi.org/10.1366/000370203322554518
     """
 
     def solve1d(yi):
@@ -177,6 +243,45 @@ def lower_polyfit(
         solver: Optional[str] = None,
         solver_opts: Optional[Mapping[str, Any]] = None
         ):
+    """Polynomial baseline removal method based on an optimzation problem.
+
+    Removes a polynamial baseline by solving an optimization problem with a
+    positivity constraint.
+
+       min     sum( loss(e_n) )
+     c_i, e_n
+
+     subject to:  y_n = sum( c_i * x_n^i ) + e_n
+                  e_n >= 0
+
+    The positivity constraint on `e_n` is equivalent to saying that the baseline
+    has to be pointwise lower than the measured spectrum. The resulting spectrum
+    with the baseline removed is therefore guaranteed to be positive.
+
+    Args:
+        x: array-like of shape (n_frequencies)
+        y: array-like of shape (..., n_frequencies, ...)
+        degree: degree of the polynomial modeling the baseline
+        loss: {'l1' (default), 'l2', 'huber'} loss function
+            - 'l1': robust loss function that is less sensitive to spectral peaks,
+                fastest method
+            - 'l2': least squares loss function, not robust but works well nevertheless,
+                much slower than `l1`
+            - 'huber': huber loss function, robust loss function with a parameter
+                slowest method
+        huber_m: switching point of the huber loss function between l_2 and l_1
+            behavior
+        axis: index of axis of `y` that contains the frequncies. Defaults to the last.
+        verbose: if True prints some solver statistics
+        solver: used solver, refer to `cvxpy` documentation for valid choices
+        solver_opts: dictionary passed to the solver, refer to `cvxpy` documentation
+
+    Returns:
+        ndarray of the same shape as `y`.
+
+    See also:
+        cvxpy: library used for modeling and solving the optimization problem
+    """
     import cvxpy as cp  # pylint: disable=import-outside-toplevel
 
     N = y.shape[axis]

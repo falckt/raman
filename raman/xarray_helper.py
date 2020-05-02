@@ -20,11 +20,12 @@ def _function_to_method(func):
             return func(*method(self), *args, **kwargs)
 
         new_func = functools.update_wrapper(wrapped_method, func)
+
+        orig_doc = func.__doc__.splitlines()[0] if func.__doc__ else 'Not documented'
         new_func.__doc__ = (
-            f'{method.__doc__}\n\n'
+            f'{orig_doc}\n\n'
             f'Refer to `{func.__module__}.{func.__name__}` for full documentation.\n\n'
-            'See Also\n'
-            '--------\n'
+            'See also:\n    '
             f'{func.__module__}.{func.__name__} : equivalent function'
         )
         new_func.__name__ = method.__name__
@@ -33,17 +34,17 @@ def _function_to_method(func):
     return wrap_method
 
 class XArrayHelper:
+    """Helper class to turn module functions into xarray methods"""
+
     def __init__(self, array: xr.DataArray):
         self._array = array
 
     @_function_to_method(utils.ensure_dims)
     def ensure_dims(self):
-        """Ensure that the given variables are dimensions"""
         return (self._array, )
 
     @_function_to_method(utils.stack_dims)
     def stack_dims(self):
-        """Stack coordinates into a new dimension"""
         return (self._array, )
 
     @_function_to_method(utils.cubify)

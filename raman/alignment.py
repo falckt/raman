@@ -11,6 +11,53 @@ import xarray as xr
 def normalize_spatial_dimensions(
         arr: xr.DataArray, origin: str = 'center', dims: Iterable[Hashable] = ('x', 'y')
         ) -> xr.DataArray:
+    """Normalize spatial coordinates
+
+    For a dataarray with arbitrary spatial positioning, introduce new spatial indexing that
+    puts (0, 0) either in the center of the scan or in the bottom left corner. This is a
+    necessary preprocessing if multiple scans of the same size should be aligned.
+
+    Args:
+        arr: input dataarray
+        origin: {'center' (default), 'min'}
+            - 'center': new spatial coordinates will have (0, 0) at the center of the image
+            - 'min': new spatial coordinates will have (0, 0) at the bottom left corner
+                of the image
+        dims: dimensions that should be normalized, defaults to ('x', 'y')
+
+    Returns:
+        dataarray with normalized spatial coordinates, the orginal coordinates are retained
+        as 'orginal_name'_old.
+
+    Examples:
+        a : <xarray.DataArray (pixel: 4)>
+            array([0., 0., 0., 0.])
+            Coordinates:
+                x        (pixel) int64 6 6 9 9
+                y        (pixel) int64 1 3 1 3
+            Dimensions without coordinates: pixel
+
+        >>> normalize_spatial_dimensions(a, 'center')
+        <xarray.DataArray (pixel: 4)>
+        array([0., 0., 0., 0.])
+        Coordinates:
+            x_old    (pixel) int64 6 6 9 9
+            y_old    (pixel) int64 1 3 1 3
+            y        (pixel) float64 -1.0 1.0 -1.0 1.0
+            x        (pixel) float64 -1.5 -1.5 1.5 1.5
+        Dimensions without coordinates: pixel
+
+        >>> normalize_spatial_dimensions(a, 'min')
+        <xarray.DataArray (pixel: 4)>
+        array([0., 0., 0., 0.])
+        Coordinates:
+            x_old    (pixel) int64 6 6 9 9
+            y_old    (pixel) int64 1 3 1 3
+            y        (pixel) int64 0 2 0 2
+            x        (pixel) int64 0 0 3 3
+        Dimensions without coordinates: pixel
+    """
+
     orig_dims = set(arr.dims)
     dims = set(dims)
 

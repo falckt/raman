@@ -12,6 +12,16 @@ from scipy import interpolate
 
 
 def mask_saturated_pixels(arr: xr.DataArray, saturation_value: float = 0) -> xr.DataArray:
+    """Mask saturated pixels
+
+    Args:
+        arr: input data
+        saturation_value: pixel value that indicates a saturated pixel, defaults to 0
+
+    Returns:
+        dataarray with saturated pixels replaced by NaNs
+    """
+
     return arr.where(arr != saturation_value)
 
 def _interpolate_masked_pixels(
@@ -70,11 +80,39 @@ def interpolate_masked_pixels(
         interpolation_dims: Optional[Sequence[Hashable]] = None,
         dim: Hashable = 'f'
         ) -> xr.DataArray:
+    """Interpolate masked pixels with neighborhood information
+
+    Impute NaN values in data array using values from neighboring elements along
+    selectable dimensions. Different interpolation methods are supported depending
+    on the number of dimensions used for interpolation. If no neighboring information
+    is available, the maximum valid value within that spectrum is used.
+
+    Args:
+        arr: input data
+        method: {'linear', 'nearest', ... }, delaults to 'linear'
+            Valid choices depends on `interpolation_dims`. If len(interpolation_dims) = 1,
+            then any method supported by `scipy.interpolate.interp1d` can be used. Otherwise
+            just 'linear' and 'nearest' are supported.
+        interpolation_dims: defaults to all dimensions but 'dim'
+            the array dimensions which are used to fill in missing values
+        dim: defaults to 'f'
+            used to infer `interpolation_dims` if they are not explicitly specified
+
+    Returns:
+        dataarray with NaN values imputed with values from neighboring pixels.
+
+    See also:
+        scipy.interpolate.interp1d: function used for 1-d interpolation
+        scipy.interpolate.NearestNDInterpolator: function used for nearest neighbor interpolation
+            in n-dimensions
+        scipy.interpolate.LinearNDInterpolator: function used for linear interpolation in
+            n-dimensions
+    """
+
     D0 = len(arr.dims)
 
     if interpolation_dims is None:
-        interpolation_dims = list(arr.dims)
-        interpolation_dims.remove(dim)
+        interpolation_dims = [d for d in arr.dims if d != dim]
 
     D = len(interpolation_dims)
 
@@ -96,6 +134,26 @@ def delete_invalid_pixels(
         drop_old_index: bool = False,
         dim: Hashable = 'f'
         ) -> xr.DataArray:
+    """Delete pixels (spectra) that contain too many invalid values
+
+    Counts the number of invalid values in each spectrum. If the number of invalid
+    values exceeds a threshold, the corresponding pixel is dropped from the dataarray.
+
+    Args:
+        arr: input datarray with shape (n_frequencies, n_pixels)
+        thres: number of invalid values to tolerate in a single pixel (spectrum)
+        drop_old_index: if deleting pixels, also delete the original pixel index
+            if the input array has pixel indices [0, *1, 2, *3, *4, 5] where '*'
+            indicates invalid values in that spectrum, the returned array will
+            have a new pixel index [0, 1, 2]. If `drop_old_index` is False, the
+            returned array will have a coordinate `dim_old` = [0, 2, 5] which
+            contains the original index values of the retained pixels.
+        dim: array dimension that contains spectra, defaults to 'f'
+
+    Returns:
+        dataarray with shape (n_frequencies, n_valid_pixels) with n_valid_pixels <= n_pixels
+    """
+
     idx = (arr.isnull().sum(dim) > thres)
 
     if arr.ndim == 2:
@@ -115,6 +173,19 @@ def normalize(
         dim: Hashable = 'f',
         method: str = 'root_mean_square'
         ) -> xr.DataArray:
+    """Normalize spectra
+
+    Normalized every spectrum contained in the dataarray.
+
+    Args:
+        arr: input array
+        dim: array dimension that contains spectra, defaults to 'f'
+        method: {'root_mean_square', 'snv', 'unit_variance'}
+
+    Returns:
+        array of same shape as input array but with normalized spectra
+    """
+
     if method == 'root_mean_square':
         ss = np.sqrt((arr*arr).mean(dim=dim))
         res = arr / ss
@@ -126,6 +197,6 @@ def normalize(
 
     elif method == 'unit_variance':
         std = arr.std(dim=dim)
-        res = mean / std
+        res = arr / std
 
     return res.assign_attrs(arr.attrs)
